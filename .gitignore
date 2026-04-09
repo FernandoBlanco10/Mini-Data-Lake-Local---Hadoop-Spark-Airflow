@@ -1,0 +1,6 @@
+airflow/logs/
+airflow/plugins/__pycache__/
+spark/output/
+__pycache__/
+*.pyc
+.env
