@@ -1,13 +1,19 @@
+import argparse
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--input_path", required=True)
+parser.add_argument("--output_path", required=True)
+args = parser.parse_args()
+
 spark = SparkSession.builder \
     .appName("ProcessSales") \
-    .config("spark.jars.packages", "org.postgresql:postgresql:42.7.3") \
     .getOrCreate()
 
 df = spark.read.csv(
-    "/opt/spark/data/sales.csv",
+    args.input_path,
     header=True,
     inferSchema=True
 )
@@ -19,10 +25,7 @@ df = df.withColumn(
 
 df.show()
 
-df.write.mode("overwrite").csv(
-    "/opt/spark/output/sales_processed",
-    header=True
-)
+df.write.mode("overwrite").csv(args.output_path, header=True)
 
 df.write \
     .format("jdbc") \

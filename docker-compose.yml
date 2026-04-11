@@ -1,4 +1,25 @@
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: airflow/Dockerfile
+  user: "${AIRFLOW_UID:-50000}:0"
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:fblanco123@postgres:5432/datawarehouse
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
+    AIRFLOW_UID: 50000
+    AIRFLOW_CONN_SPARK_DEFAULT: spark://spark%3A%2F%2Fspark-master:7077
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./spark/jobs:/opt/airflow/spark-jobs
+    - ./spark/data:/opt/spark/data
+    - ./spark/output:/opt/spark/output
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+
 services:
+
   postgres:
     image: postgres:15
     container_name: postgres
@@ -45,6 +66,7 @@ services:
     hostname: spark-master
     environment:
       SPARK_MODE: master
+      CORE_CONF_fs_defaultFS: hdfs://namenode:9000
     ports:
       - "8080:8080"
       - "7077:7077"
@@ -60,6 +82,7 @@ services:
     environment:
       SPARK_MODE: worker
       SPARK_MASTER_URL: spark://spark-master:7077
+      CORE_CONF_fs_defaultFS: hdfs://namenode:9000
     ports:
       - "8082:8081"
     depends_on:
@@ -70,16 +93,10 @@ services:
       - ./spark/output:/opt/spark/output
 
   airflow-init:
-    image: apache/airflow:2.8.1
+    <<: *airflow-common
     container_name: airflow-init
     depends_on:
       - postgres
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:fblanco123@postgres:5432/datawarehouse
-      AIRFLOW__CORE__FERNET_KEY: ''
-      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      AIRFLOW_UID: 50000
     entrypoint: /bin/bash
     command: 
       - -c
@@ -92,48 +109,26 @@ services:
           --lastname Blanco \
           --role Admin \
           --email admin@example.com
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/logs:/opt/airflow/logs
-      - ./airflow/plugins:/opt/airflow/plugins
 
   airflow-webserver:
-    image: apache/airflow:2.8.1
+    <<: *airflow-common
+    user: "0:0"
     container_name: airflow-webserver
     restart: always
     depends_on:
       - airflow-init
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:fblanco123@postgres/datawarehouse
-      AIRFLOW__CORE__FERNET_KEY: ''
-      AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
-      AIRFLOW_UID: 50000
     ports:
       - "8081:8080"
     command: webserver
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/logs:/opt/airflow/logs
-      - ./airflow/plugins:/opt/airflow/plugins
 
   airflow-scheduler:
-    image: apache/airflow:2.8.1
+    <<: *airflow-common
+    user: "0:0"
     container_name: airflow-scheduler
     restart: always
     depends_on:
       - airflow-webserver
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:fblanco123@postgres/datawarehouse
-      AIRFLOW__CORE__FERNET_KEY: ''
-      AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
-      AIRFLOW_UID: 50000
     command: scheduler
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/logs:/opt/airflow/logs
-      - ./airflow/plugins:/opt/airflow/plugins
 
 volumes:
   postgres_data:
